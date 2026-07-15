@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # INP Playwright 主流程自动化测试项目
 
 基于桌面文件 `INP-playwright脚本.txt` 中录制的 Playwright 脚本整理而成，并参考 `D:\AI\e2e-testing` 的项目组织方式拆分为配置、Page Object、测试用例和工具配置。
@@ -94,3 +95,6 @@ npm run test:report
 - 原始脚本中的图形验证码是固定值 `DBVG`，真实测试环境验证码如果每次变化，需要在 `.env` 中更新 `GRAPHIC_CODE`，或后续接入验证码绕过/识别机制。
 - 下单链路会改动购物车和订单数据，默认 `workers=1` 串行执行，避免同一账号并发互相影响。
 - 当前项目保留了原始录制选择器，并通过 Page Object 做了分层；后续如果页面文案或表格行名称变化，优先调整 `.env` 和 `pages/` 下对应页面对象。
+=======
+# XHcpgogogo
+>>>>>>> 6d57095436042fe2fd2ae78b14b7bc4e9e11bdfb

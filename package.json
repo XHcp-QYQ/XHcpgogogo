@@ -1,0 +1,18 @@
+{
+  "name": "inp-autotest",
+  "version": "1.0.0",
+  "description": "INP 主流程 Playwright 自动化测试项目",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:main": "playwright test tests/specs/inp-mainflow.spec.js",
+    "test:main:headed": "playwright test tests/specs/inp-mainflow.spec.js --headed",
+    "test:report": "playwright show-report workbuddy-test-results/html-report"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.61.1",
+    "dotenv": "^16.4.0"
+  },
+  "devDependencies": {}
+}

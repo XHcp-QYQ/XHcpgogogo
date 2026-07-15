@@ -31,14 +31,19 @@ jobs:
       CAPTCHA_MODE: env
       CAPTCHA_PROMPT_TIMEOUT_MS: 30000
       BASE_URL: ${{ secrets.BASE_URL }}
-      INP_ACCOUNT: ${{ secrets.INP_ACCOUNT }}
-      INP_PASSWORD: ${{ secrets.INP_PASSWORD }}
+      TEST_ACCOUNT: ${{ secrets.TEST_ACCOUNT }}
+      TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
       GRAPHIC_CODE: ${{ secrets.GRAPHIC_CODE }}
       PRODUCT_ROW_NAME: ${{ secrets.PRODUCT_ROW_NAME }}
       PURCHASE_QTY: ${{ secrets.PURCHASE_QTY }}
+      ADDRESS_ROW_NAME: ${{ secrets.ADDRESS_ROW_NAME }}
       PAYMENT_TERM: ${{ secrets.PAYMENT_TERM }}
-      PAYMENT_METHOD: ${{ secrets.PAYMENT_METHOD }}
+      FIRST_PAYMENT_METHOD: ${{ secrets.FIRST_PAYMENT_METHOD }}
       BALANCE_ROW_NAME: ${{ secrets.BALANCE_ROW_NAME }}
+      BALANCE_PAYMENT_METHOD: ${{ secrets.BALANCE_PAYMENT_METHOD }}
+      DELIVERY_DAY: ${{ secrets.DELIVERY_DAY }}
+      DELIVERY_DAY_INDEX: ${{ secrets.DELIVERY_DAY_INDEX }}
+      ORDER_NUMBER: ${{ secrets.ORDER_NUMBER }}
 
     steps:
       - name: Checkout repository

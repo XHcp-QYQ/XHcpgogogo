@@ -3,6 +3,7 @@ const path = require("node:path");
 const readline = require("node:readline/promises");
 const { stdin: input, stdout: output } = require("node:process");
 const { expect } = require("@playwright/test");
+const { recognizeCaptchaFromBase64 } = require("../utils/captchaOcr");
 
 class LoginPage {
   constructor(page) {
@@ -113,6 +114,31 @@ class LoginPage {
       return graphicCode;
     }
 
+    if (normalizedMode === "ocr") {
+      try {
+        const base64Img = this.latestCaptcha?.base64Img;
+        if (base64Img) {
+          const recognized = await recognizeCaptchaFromBase64(base64Img);
+          if (recognized) {
+            return recognized;
+          }
+        }
+        console.warn("OCR 未能识别图形验证码，回退到人工输入模式。");
+      } catch (error) {
+        console.warn(`OCR 识别失败，回退到人工输入模式：${error.message}`);
+      }
+
+      if (process.stdin.isTTY) {
+        return this.promptForCaptcha({ timeoutMs: captchaPromptTimeoutMs });
+      }
+
+      this.saveCaptchaImage();
+      await expect(this.graphicCodeInput).toHaveValue(/\S{4,}/, {
+        timeout: captchaPromptTimeoutMs,
+      });
+      return this.graphicCodeInput.inputValue();
+    }
+
     if (normalizedMode === "prompt") {
       return this.promptForCaptcha({ timeoutMs: captchaPromptTimeoutMs });
     }
@@ -146,7 +172,7 @@ class LoginPage {
 
   async login({ account, password, graphicCode, captchaMode, captchaPromptTimeoutMs }) {
     const normalizedMode = String(captchaMode || "prompt").toLowerCase();
-    const maxAttempts = ["manual", "prompt"].includes(normalizedMode) ? 3 : 1;
+    const maxAttempts = ["manual", "prompt", "ocr"].includes(normalizedMode) ? 3 : 1;
     let lastErrorMessage = "";
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -170,7 +196,8 @@ class LoginPage {
         captchaPromptTimeoutMs,
       });
 
-      await this.graphicCodeInput.fill(resolvedGraphicCode);
+      const uppercaseGraphicCode = String(resolvedGraphicCode || "").trim().toUpperCase();
+      await this.graphicCodeInput.fill(uppercaseGraphicCode);
 
       const loginResponsePromise = this.page.waitForResponse(
         (response) => response.url().includes("/api/auth/login"),

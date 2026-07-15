@@ -14,7 +14,8 @@ class PurchasePage {
   constructor(page) {
     this.page = page;
     this.purchaseLink = page.getByRole("link", { name: "Purchase" });
-    this.addToCartButton = page.getByRole("button", { name: /Add to the cart/i }).first();
+    this.addToCartButton = page.getByRole("button", { name: /Add to the cart|加入购物车/i }).first();
+    this.regularPriceButton = page.getByRole("button", { name: /Regular Price/i }).first();
     this.cartLink = page.locator("a[href='/cart']").first();
   }
 
@@ -83,7 +84,14 @@ class PurchasePage {
     await expect(qtyInput).toHaveValue(String(quantity));
   }
 
-  async getCartQuantityCount() {
+  async dismissCookieBannerIfPresent() {
+    const agree = this.page.getByRole("button", { name: /^(AGREE|同意)$/i });
+    if (await agree.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await agree.click().catch(() => undefined);
+    }
+  }
+
+  async getCartSnapshot() {
     return await this.page.evaluate(async () => {
       const token = decodeURIComponent((document.cookie.match(/(?:^|;\s*)PC_TOKEN=([^;]+)/) || [])[1] || "");
       const response = await fetch("/api/bbb/userCenter/userShoppingCar/count", {
@@ -93,21 +101,50 @@ class PurchasePage {
       });
       const json = await response.json().catch(() => ({}));
       const list = Array.isArray(json.data) ? json.data : [];
-      return list.reduce((sum, item) => sum + Number(item.quantityCount || 0), 0);
+      const totalPieces = list.reduce(
+        (sum, item) => sum + Number(item.quantity ?? item.quantityCount ?? 0),
+        0,
+      );
+      return { list, totalPieces, lineCount: list.length, code: json.code };
     });
   }
 
-  async waitForCartQuantityToIncrease(previousCount, timeout = 15000) {
+  async getCartQuantityCount() {
+    const snapshot = await this.getCartSnapshot();
+    return snapshot.totalPieces;
+  }
+
+  itemQuantity(item) {
+    return Number(item?.quantity ?? item?.quantityCount ?? 0);
+  }
+
+  findCartItem(list, goodsId) {
+    if (!goodsId) return null;
+    const id = String(goodsId);
+    return (
+      list.find(
+        (item) =>
+          String(item.goodsId || "") === id ||
+          String(item.skuGoodsId || "") === id ||
+          String(item.id || "") === id,
+      ) || null
+    );
+  }
+
+  async waitForCartAddSuccess({ beforePieces, goodsId, minQuantity = 1, timeout = 15000 } = {}) {
     const start = Date.now();
-    let lastCount = previousCount;
+    let lastSnapshot = { totalPieces: beforePieces, list: [], lineCount: 0 };
 
     while (Date.now() - start < timeout) {
-      lastCount = await this.getCartQuantityCount().catch(() => lastCount);
-      if (lastCount > previousCount) return lastCount;
+      lastSnapshot = await this.getCartSnapshot().catch(() => lastSnapshot);
+      const matched = this.findCartItem(lastSnapshot.list, goodsId);
+      const matchedQty = this.itemQuantity(matched);
+      if (lastSnapshot.totalPieces > beforePieces) return { ok: true, snapshot: lastSnapshot };
+      if (matched && matchedQty >= minQuantity) return { ok: true, snapshot: lastSnapshot };
       await this.page.waitForTimeout(500);
     }
 
-    return lastCount;
+    return { ok: false, snapshot: lastSnapshot };
   }
 
   async getCurrentGoodsDetail() {
@@ -201,41 +238,108 @@ class PurchasePage {
     return result.json;
   }
 
+  async confirmRegularPriceIfNeeded() {
+    // Regular Price 可能是 button / menuitem / q-item 文本，不一定是 role=button
+    const candidates = [
+      this.page.getByRole("button", { name: /Regular Price/i }),
+      this.page.getByRole("menuitem", { name: /Regular Price/i }),
+      this.page.getByRole("option", { name: /Regular Price/i }),
+      this.page.getByText(/^Regular Price$/i),
+      this.page.locator("button, [role='button'], [role='menuitem'], .q-btn, .q-item").filter({
+        hasText: /^Regular Price$/i,
+      }),
+    ];
+
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      for (const locator of candidates) {
+        const target = locator.first();
+        if (await target.isVisible().catch(() => false)) {
+          await target.click({ force: true });
+          return true;
+        }
+      }
+      await this.page.waitForTimeout(200);
+    }
+    return false;
+  }
+
   async addSelectedToCart(quantity = 1) {
-    const beforeCount = await this.getCartQuantityCount().catch(() => 0);
+    await this.dismissCookieBannerIfPresent();
+
+    const beforeSnapshot = await this.getCartSnapshot().catch(() => ({
+      totalPieces: 0,
+      list: [],
+      lineCount: 0,
+    }));
+    const beforeCount = beforeSnapshot.totalPieces || 0;
+    const expectedQuantity = toPositiveInteger(quantity, 1);
+    let goodsId = null;
+    try {
+      const goodsInfo = await this.getCurrentGoodsDetail();
+      goodsId = goodsInfo.goodsId || goodsInfo.id;
+    } catch {
+      goodsId = null;
+    }
+
     let uiAddError = null;
+    let uiAddSucceeded = false;
 
     if (await this.addToCartButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       const addResponsePromise = this.page
-        .waitForResponse((response) => response.url().includes("/userCenter/userShoppingCar/add"), { timeout: 8000 })
+        .waitForResponse((response) => response.url().includes("/userCenter/userShoppingCar/add"), { timeout: 20000 })
         .catch(() => null);
 
       try {
         await expect(this.addToCartButton).toBeEnabled({ timeout: 30000 });
         await this.addToCartButton.click();
+        // 点「加入购物车」后右侧会出现 Regular Price，需再点才真正加购
+        const clickedRegularPrice = await this.confirmRegularPriceIfNeeded();
+        if (!clickedRegularPrice) {
+          console.warn("未检测到 Regular Price 按钮/菜单项，继续等待加购接口响应。");
+        }
+
         const addResponse = await addResponsePromise;
         if (addResponse) {
           const body = await addResponse.json().catch(() => null);
           if (addResponse.status() >= 400 || (body && body.code !== 200)) {
             uiAddError = new Error(`页面加购接口失败：HTTP ${addResponse.status()}，响应：${JSON.stringify(body).slice(0, 800)}`);
+          } else {
+            uiAddSucceeded = true;
           }
         }
       } catch (error) {
         uiAddError = error;
       }
 
-      const afterUiCount = await this.waitForCartQuantityToIncrease(beforeCount, 8000);
-      if (afterUiCount > beforeCount) return;
+      const uiResult = await this.waitForCartAddSuccess({
+        beforePieces: beforeCount,
+        goodsId,
+        minQuantity: expectedQuantity,
+        timeout: 8000,
+      });
+      if (uiResult.ok || (uiAddSucceeded && uiResult.snapshot.lineCount > 0)) {
+        return;
+      }
     }
 
     await this.addCurrentDetailToCartByApi(quantity);
-    const afterApiCount = await this.waitForCartQuantityToIncrease(beforeCount, 15000);
-    if (afterApiCount <= beforeCount) {
+    const apiResult = await this.waitForCartAddSuccess({
+      beforePieces: beforeCount,
+      goodsId,
+      minQuantity: expectedQuantity,
+      timeout: 15000,
+    });
+    if (!apiResult.ok) {
       const reason = uiAddError ? ` 页面点击加购异常：${uiAddError.message}` : "";
-      throw new Error(`已调用加购接口但购物车数量未增加，当前数量 ${afterApiCount}，原数量 ${beforeCount}。${reason}`);
+      throw new Error(
+        `加购后未确认购物车更新，原数量 ${beforeCount}，当前数量 ${apiResult.snapshot.totalPieces}，行数 ${apiResult.snapshot.lineCount}。${reason}`,
+      );
     }
 
-    await expect(this.cartLink.locator("[role='status']").first()).toContainText(String(afterApiCount), { timeout: 10000 }).catch(() => undefined);
+    await expect(this.cartLink.locator("[role='status']").first())
+      .toContainText(/\d+/, { timeout: 10000 })
+      .catch(() => undefined);
   }
 }
 

@@ -8,11 +8,13 @@
     "test:debug": "playwright test --debug",
     "test:main": "playwright test tests/specs/inp-mainflow.spec.js",
     "test:main:headed": "playwright test tests/specs/inp-mainflow.spec.js --headed",
-    "test:report": "playwright show-report workbuddy-test-results/html-report"
+    "test:report": "playwright show-report workbuddy-test-results/html-report",
+    "test:unit": "node --test utils/captchaOcr.test.js"
   },
   "dependencies": {
     "@playwright/test": "^1.61.1",
-    "dotenv": "^16.4.0"
+    "dotenv": "^16.4.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {}
 }

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # INP Playwright 主流程自动化测试项目
 
 基于桌面文件 `INP-playwright脚本.txt` 中录制的 Playwright 脚本整理而成，并参考 `D:\AI\e2e-testing` 的项目组织方式拆分为配置、Page Object、测试用例和工具配置。
@@ -19,7 +18,8 @@ INP-autotest/
 ├── tests/specs/
 │   └── inp-mainflow.spec.js      # INP 主流程测试
 ├── utils/
-│   └── env.js                    # 环境变量读取
+│   ├── env.js                    # 环境变量读取
+│   └── captchaOcr.js             # 图形验证码 OCR 识别
 ├── reports/
 └── workbuddy-test-results/       # 测试报告与失败截图/trace/video 输出
 ```
@@ -33,7 +33,7 @@ INP-autotest/
 1. 输入 Account/email、Password、Graphic verification code 并登录
 2. 进入 Purchase
 3. 勾选商品 `JKM620N-72HL4-V JKM620N-72HL4`，数量填写 `100`
-4. Add to the cart
+4. Add to the cart（如出现 Regular Price 需再点一次）
 5. 打开购物车，勾选商品并 Checkout Selected items
 6. 添加收货地址
 7. 选择付款条件 `%DP+90%BP`
@@ -65,7 +65,8 @@ cp .env.example .env
 | --- | --- |
 | `BASE_URL` | INP 测试环境地址 |
 | `TEST_ACCOUNT` / `TEST_PASSWORD` | 登录账号与密码 |
-| `GRAPHIC_CODE` | 图形验证码；如果验证码会变化，运行前更新该值 |
+| `CAPTCHA_MODE` | `ocr`（默认，本地自动识别并大写填入）/ `manual` / `prompt` / `env`（CI） |
+| `GRAPHIC_CODE` | 仅 `CAPTCHA_MODE=env` 时使用；验证码固定环境才需配置 |
 | `PRODUCT_ROW_NAME` | 商品表格行名称 |
 | `PURCHASE_QTY` | 采购数量 |
 | `ADDRESS_ROW_NAME` | 收货地址行名称 |
@@ -92,9 +93,7 @@ npm run test:report
 
 ## 注意事项
 
-- 原始脚本中的图形验证码是固定值 `DBVG`，真实测试环境验证码如果每次变化，需要在 `.env` 中更新 `GRAPHIC_CODE`，或后续接入验证码绕过/识别机制。
+- 默认 `CAPTCHA_MODE=ocr`：用本地 tesseract 识别图形验证码后按大写填入；识别失败会回退到 `prompt`（TTY）或 `manual`（非 TTY）。CI 使用 `CAPTCHA_MODE=env` + `GRAPHIC_CODE`。
+- PDP 加购：先点「Add to the cart / 加入购物车」，若出现「Regular Price」需再点一次才会真正加购。
 - 下单链路会改动购物车和订单数据，默认 `workers=1` 串行执行，避免同一账号并发互相影响。
 - 当前项目保留了原始录制选择器，并通过 Page Object 做了分层；后续如果页面文案或表格行名称变化，优先调整 `.env` 和 `pages/` 下对应页面对象。
-=======
-# XHcpgogogo
->>>>>>> 6d57095436042fe2fd2ae78b14b7bc4e9e11bdfb
